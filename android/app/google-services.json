@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "691445730086",
+    "project_id": "privtalk-4f668",
+    "storage_bucket": "privtalk-4f668.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:691445730086:android:19a7d0289acc91cb3fcfe7",
+        "android_client_info": {
+          "package_name": "com.example.privtalk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4pT_pM4QoxJZhcwpaqvqNXyOu8rvAVwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
