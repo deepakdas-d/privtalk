@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,28 +34,63 @@ class ProfileRepository {
 
   /// Compresses [file], uploads to Cloudinary, saves URL to Firestore.
   Future<String> uploadAndSavePhoto(File file) async {
-    final compressed = await _compressImage(file);
-    final url = await CloudinaryService.uploadProfilePhoto(compressed);
+    try {
+      log('ORIGINAL FILE: ${file.path}');
 
-    final user = _auth.currentUser;
-    if (user != null) {
+      final compressed = await _compressImage(file);
+
+      log('COMPRESSED FILE: ${compressed.path}');
+
+      final url = await CloudinaryService.uploadProfilePhoto(compressed);
+
+      log('CLOUDINARY URL: $url');
+
+      if (url.isEmpty) {
+        throw Exception('Image upload failed');
+      }
+
+      final user = _auth.currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
       await _firestore.collection('users').doc(user.uid).update({
         'photoUrl': url,
       });
+
+      log('FIRESTORE UPDATED');
+
+      return url;
+    } catch (e, stack) {
+      log('REPOSITORY ERROR: $e');
+      print(stack);
+
+      rethrow;
     }
-    return url;
   }
 
   Future<File> _compressImage(File file) async {
     final dir = await getTemporaryDirectory();
-    final target = p.join(dir.path, 'compressed_${p.basename(file.path)}');
+
+    final targetPath = p.join(
+      dir.path,
+      '${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
+
     final result = await FlutterImageCompress.compressAndGetFile(
       file.absolute.path,
-      target,
-      quality: 75, // 75 % quality — good balance
+      targetPath,
+      quality: 75,
       minWidth: 400,
       minHeight: 400,
+      format: CompressFormat.jpeg,
     );
-    return result != null ? File(result.path) : file;
+
+    if (result == null) {
+      throw Exception('Image compression failed');
+    }
+
+    return File(result.path);
   }
 }

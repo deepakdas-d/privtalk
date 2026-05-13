@@ -262,7 +262,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           strokeWidth: 2.5,
                         ),
                       )
-                    : user.photoUrl != null
+                    : user.photoUrl != null && user.photoUrl!.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: user.photoUrl!,
                         fit: BoxFit.cover,

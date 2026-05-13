@@ -15,7 +15,21 @@ class UserTile extends StatelessWidget {
       onTap: () => context.push('/user-profile', extra: user),
       leading: CircleAvatar(
         radius: 24,
-        backgroundImage: CachedNetworkImageProvider(user.photoUrl),
+        backgroundColor: const Color(0xFF6C63FF),
+
+        backgroundImage: user.photoUrl.isNotEmpty
+            ? CachedNetworkImageProvider(user.photoUrl)
+            : null,
+
+        child: user.photoUrl.isEmpty
+            ? Text(
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            : null,
       ),
       title: Text(user.name),
       subtitle: Text(user.phone),

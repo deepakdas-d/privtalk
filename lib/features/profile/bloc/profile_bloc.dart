@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:privtalk/features/auth/model/auth_model.dart';
@@ -64,14 +65,25 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     if (current == null) return;
 
     emit(ProfilePhotoUploading(current));
+
     try {
+      log('UPLOAD STARTED');
+      log('FILE PATH: ${event.filePath}');
+
       final url = await profileRepository.uploadAndSavePhoto(
         File(event.filePath),
       );
+
+      log('UPLOAD URL: $url');
+
       final updated = current.copyWith(photoUrl: url);
+
       emit(ProfilePhotoUploadSuccess(updated, url));
-      emit(ProfileLoaded(updated)); // settle back to loaded so UI is consistent
-    } catch (e) {
+      emit(ProfileLoaded(updated));
+    } catch (e, stack) {
+      log('UPLOAD FAILED: $e');
+      print(stack);
+
       emit(ProfileFailure(e.toString(), user: current));
     }
   }

@@ -19,7 +19,6 @@ class CloudinaryService {
     final formData = FormData.fromMap({
       'upload_preset': _uploadPreset,
       'folder': 'profile_photos',
-      'transformation': 'c_fill,w_400,h_400,q_auto,f_auto',
       'file': await MultipartFile.fromFile(
         file.path,
         filename: file.path.split('/').last,
