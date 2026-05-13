@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:privtalk/features/auth/presentation/pages/login_page.dart';
 import 'package:privtalk/features/auth/presentation/pages/register_page.dart';
+import 'package:privtalk/features/contact-access/presentation/user_access_page.dart';
 import 'package:privtalk/features/contact/presentation/pages/contact_page.dart';
 import 'package:privtalk/features/profile/presentation/profile_page.dart';
 
@@ -21,6 +22,14 @@ class AppRouter {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfilePage(),
+      ),
+      GoRoute(
+        path: '/user-profile',
+        builder: (context, state) {
+          final uid = state.extra as String;
+
+          return UserAccessPage(uid: uid);
+        },
       ),
     ],
   );

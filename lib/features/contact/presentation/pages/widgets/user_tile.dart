@@ -12,7 +12,8 @@ class UserTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      onTap: () => context.push('/user-profile', extra: user),
+      onTap: () => context.push('/user-profile', extra: user.uid),
+
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: const Color(0xFF6C63FF),
@@ -31,8 +32,10 @@ class UserTile extends StatelessWidget {
               )
             : null,
       ),
+
       title: Text(user.name),
       subtitle: Text(user.phone),
+
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
     );
   }
