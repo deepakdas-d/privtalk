@@ -82,7 +82,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       emit(ProfileLoaded(updated));
     } catch (e, stack) {
       log('UPLOAD FAILED: $e');
-      print(stack);
+      log('Stack trace: $stack');
 
       emit(ProfileFailure(e.toString(), user: current));
     }

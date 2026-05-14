@@ -15,10 +15,10 @@ class UsersRepository {
         .collection('users')
         .where('uid', isNotEqualTo: currentUid)
         .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            return UserModel.fromMap(doc.data());
-          }).toList();
-        });
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromMap(doc.data()))
+              .toList(),
+        );
   }
 }

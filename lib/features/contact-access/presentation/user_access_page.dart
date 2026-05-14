@@ -1,10 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:privtalk/features/contact-access/bloc/user_access_bloc.dart';
 import 'package:privtalk/features/contact-access/bloc/user_access_event.dart';
 import 'package:privtalk/features/contact-access/bloc/user_access_state.dart';
 import 'package:privtalk/features/contact-access/repository/user_access_repository.dart';
+import 'package:privtalk/features/call/bloc/call_bloc.dart';
+import 'package:privtalk/features/call/bloc/call_event.dart';
+import 'package:privtalk/features/call/bloc/call_state.dart';
+import 'package:privtalk/features/call/models/call_model.dart';
+import 'package:privtalk/features/call/repository/call_repository.dart';
 
 class UserAccessPage extends StatelessWidget {
   final String uid;
@@ -13,14 +20,65 @@ class UserAccessPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => UserAccessBloc(
-        repository: UserAccessRepository(firestore: FirebaseFirestore.instance),
-      )..add(LoadUserEvent(uid)),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => UserAccessBloc(
+            repository: UserAccessRepository(
+              firestore: FirebaseFirestore.instance,
+            ),
+          )..add(LoadUserEvent(uid)),
+        ),
+        BlocProvider(create: (_) => CallBloc(repository: CallRepository())),
+      ],
+      child: _UserAccessView(uid: uid),
+    );
+  }
+}
 
+class _UserAccessView extends StatelessWidget {
+  final String uid;
+
+  const _UserAccessView({required this.uid});
+
+  String get _currentUid => FirebaseAuth.instance.currentUser!.uid;
+
+  void _startCall(
+    BuildContext context,
+    CallType type,
+    String remoteName,
+    String remotePhoto,
+  ) {
+    // Trigger the call in the Bloc
+    context.read<CallBloc>().add(
+      StartCallEvent(callerId: _currentUid, receiverId: uid, callType: type),
+    );
+
+    // Navigate immediately — the page listens to Bloc state for the callId
+    context.push(
+      '/outgoing-call',
+      extra: {
+        'remoteUid': uid,
+        'remoteName': remoteName,
+        'remotePhoto': remotePhoto,
+        'callType': type,
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<CallBloc, CallState>(
+      listener: (context, state) {
+        // If call fails before we even navigate away, show a snackbar
+        if (state is CallFailed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Call failed: ${state.reason}')),
+          );
+        }
+      },
       child: Scaffold(
         appBar: AppBar(title: const Text('User Profile')),
-
         body: BlocBuilder<UserAccessBloc, UserAccessState>(
           builder: (context, state) {
             if (state is UserAccessLoading) {
@@ -40,14 +98,13 @@ class UserAccessPage extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // Avatar
                       CircleAvatar(
                         radius: 55,
                         backgroundColor: Colors.deepPurple,
-
                         backgroundImage: user.photoUrl.isNotEmpty
                             ? NetworkImage(user.photoUrl)
                             : null,
-
                         child: user.photoUrl.isEmpty
                             ? Text(
                                 user.name.isNotEmpty
@@ -72,18 +129,20 @@ class UserAccessPage extends StatelessWidget {
                       ),
 
                       const SizedBox(height: 8),
-
                       Text(user.phone),
-
                       const SizedBox(height: 40),
 
+                      // Video call button
                       SizedBox(
                         width: double.infinity,
                         height: 55,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            // video call
-                          },
+                          onPressed: () => _startCall(
+                            context,
+                            CallType.video,
+                            user.name,
+                            user.photoUrl,
+                          ),
                           icon: const Icon(Icons.videocam),
                           label: const Text('Video Call'),
                         ),
@@ -91,13 +150,17 @@ class UserAccessPage extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
+                      // Audio call button
                       SizedBox(
                         width: double.infinity,
                         height: 55,
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            // audio call
-                          },
+                          onPressed: () => _startCall(
+                            context,
+                            CallType.audio,
+                            user.name,
+                            user.photoUrl,
+                          ),
                           icon: const Icon(Icons.call),
                           label: const Text('Audio Call'),
                         ),

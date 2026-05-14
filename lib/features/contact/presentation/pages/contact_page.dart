@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:privtalk/features/contact/presentation/pages/widgets/contacts_view.dart';
-
 import '../../../../core/services/permission_service.dart';
 import '../../bloc/users_bloc.dart';
 import '../../bloc/users_event.dart';

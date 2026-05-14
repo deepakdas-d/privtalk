@@ -1,7 +1,8 @@
-// lib/features/contacts/presentation/widgets/user_tile.dart
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:privtalk/core/services/presence_service.dart';
 import 'package:privtalk/features/contact/models/user_model.dart';
 
 class UserTile extends StatelessWidget {
@@ -11,32 +12,63 @@ class UserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: () => context.push('/user-profile', extra: user.uid),
+    return StreamBuilder<bool>(
+      stream: PresenceService.instance.userPresence(user.uid),
 
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: const Color(0xFF6C63FF),
+      builder: (context, snapshot) {
+        final online = snapshot.data ?? false;
 
-        backgroundImage: user.photoUrl.isNotEmpty
-            ? CachedNetworkImageProvider(user.photoUrl)
-            : null,
+        return ListTile(
+          onTap: () => context.push('/user-profile', extra: user.uid),
 
-        child: user.photoUrl.isEmpty
-            ? Text(
-                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: const Color(0xFF6C63FF),
+
+                backgroundImage: user.photoUrl.isNotEmpty
+                    ? CachedNetworkImageProvider(user.photoUrl)
+                    : null,
+
+                child: user.photoUrl.isEmpty
+                    ? Text(
+                        user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
+
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 14,
+                  height: 14,
+
+                  decoration: BoxDecoration(
+                    color: online ? Colors.green : Colors.grey,
+
+                    shape: BoxShape.circle,
+
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
                 ),
-              )
-            : null,
-      ),
+              ),
+            ],
+          ),
 
-      title: Text(user.name),
-      subtitle: Text(user.phone),
+          title: Text(user.name),
 
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+          subtitle: Text(online ? 'Online' : user.phone),
+
+          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        );
+      },
     );
   }
 }

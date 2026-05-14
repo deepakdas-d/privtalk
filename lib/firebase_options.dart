@@ -46,6 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '691445730086',
     projectId: 'privtalk-4f668',
     authDomain: 'privtalk-4f668.firebaseapp.com',
+    databaseURL: 'https://privtalk-4f668-default-rtdb.firebaseio.com',
     storageBucket: 'privtalk-4f668.firebasestorage.app',
     measurementId: 'G-5H9PX3DZK4',
   );
@@ -55,6 +56,7 @@ class DefaultFirebaseOptions {
     appId: '1:691445730086:android:19a7d0289acc91cb3fcfe7',
     messagingSenderId: '691445730086',
     projectId: 'privtalk-4f668',
+    databaseURL: 'https://privtalk-4f668-default-rtdb.firebaseio.com',
     storageBucket: 'privtalk-4f668.firebasestorage.app',
   );
 
@@ -63,7 +65,9 @@ class DefaultFirebaseOptions {
     appId: '1:691445730086:ios:33b9600984632de43fcfe7',
     messagingSenderId: '691445730086',
     projectId: 'privtalk-4f668',
+    databaseURL: 'https://privtalk-4f668-default-rtdb.firebaseio.com',
     storageBucket: 'privtalk-4f668.firebasestorage.app',
+    iosClientId: '691445730086-1lcrfe74qs6npug10aeviv6bgg7as4c7.apps.googleusercontent.com',
     iosBundleId: 'com.example.privtalk',
   );
 
@@ -72,7 +76,9 @@ class DefaultFirebaseOptions {
     appId: '1:691445730086:ios:33b9600984632de43fcfe7',
     messagingSenderId: '691445730086',
     projectId: 'privtalk-4f668',
+    databaseURL: 'https://privtalk-4f668-default-rtdb.firebaseio.com',
     storageBucket: 'privtalk-4f668.firebasestorage.app',
+    iosClientId: '691445730086-1lcrfe74qs6npug10aeviv6bgg7as4c7.apps.googleusercontent.com',
     iosBundleId: 'com.example.privtalk',
   );
 
@@ -82,7 +88,9 @@ class DefaultFirebaseOptions {
     messagingSenderId: '691445730086',
     projectId: 'privtalk-4f668',
     authDomain: 'privtalk-4f668.firebaseapp.com',
+    databaseURL: 'https://privtalk-4f668-default-rtdb.firebaseio.com',
     storageBucket: 'privtalk-4f668.firebasestorage.app',
     measurementId: 'G-CRZ1JZTF78',
   );
+
 }

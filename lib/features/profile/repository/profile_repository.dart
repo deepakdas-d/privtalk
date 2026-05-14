@@ -64,7 +64,7 @@ class ProfileRepository {
       return url;
     } catch (e, stack) {
       log('REPOSITORY ERROR: $e');
-      print(stack);
+      log('Stack trace: $stack');
 
       rethrow;
     }
