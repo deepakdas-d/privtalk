@@ -113,22 +113,13 @@ class WebRtcService {
     _logger('🔌 [WebRTC] Wiring peer connection callbacks');
 
     _pc!.onIceCandidate = (candidate) {
-      _logger(
-        '🧊 [WebRTC] onIceCandidate fired! candidate=${candidate.candidate}',
-      );
-      if (candidate.candidate != null) {
-        _logger('🧊 [WebRTC] ICE Candidate generated...');
-        onIceCandidate?.call(candidate);
-      } else {
-        _logger('⚠️ [WebRTC] ICE gathering complete (null candidate)');
-      }
-    };
-    _pc!.onIceCandidate = (candidate) {
       if (candidate.candidate != null) {
         _logger(
           '🧊 [WebRTC] ICE Candidate generated | candidate=${candidate.candidate?.substring(0, 50)}... | mid=${candidate.sdpMid}',
         );
         onIceCandidate?.call(candidate);
+      } else {
+        _logger('⚠️ [WebRTC] ICE gathering complete (null candidate)');
       }
     };
 
