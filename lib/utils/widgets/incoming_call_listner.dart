@@ -2,12 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:developer' as developer;
 import 'package:privtalk/features/call/presentation/pages/outgoing_call_page.dart';
 
 import '../../features/call/bloc/call_bloc.dart';
 import '../../features/call/bloc/call_event.dart';
 import '../../features/call/models/call_model.dart';
 import '../../features/call/repository/call_repository.dart';
+
+final _logger = developer.log;
 
 /// Drop this widget above MaterialApp.router in app.dart.
 /// It listens for incoming calls and shows a full-screen overlay
@@ -35,12 +38,14 @@ class _IncomingCallListenerState extends State<IncomingCallListener> {
       stream: _repo.watchIncomingCalls(_currentUid),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
+          _logger('📱 [LISTENER] Checking for incoming calls | docs=${snapshot.data!.docs.length}', name: 'IncomingCallListener');
           for (final doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
             final callId = data['callId'] as String? ?? doc.id;
 
             if (!_shownCallIds.contains(callId)) {
               _shownCallIds.add(callId);
+              _logger('📱 [LISTENER] New incoming call detected | callId=$callId | from=${data['callerId']}', name: 'IncomingCallListener');
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _showIncomingCallOverlay(CallModel.fromMap(data));
@@ -54,6 +59,8 @@ class _IncomingCallListenerState extends State<IncomingCallListener> {
   }
 
   Future<void> _showIncomingCallOverlay(CallModel call) async {
+    _logger('📱 [LISTENER] Showing incoming call overlay | callId=${call.callId} | from=${call.callerId} | isVideo=${call.isVideo}', name: 'IncomingCallListener');
+
     // Fetch caller info from Firestore users collection
     String callerName = 'Unknown';
     String callerPhoto = '';
@@ -67,8 +74,11 @@ class _IncomingCallListenerState extends State<IncomingCallListener> {
         final data = userDoc.data()!;
         callerName = data['name'] as String? ?? 'Unknown';
         callerPhoto = data['profileImage'] as String? ?? '';
+        _logger('📱 [LISTENER] Caller info fetched | name=$callerName', name: 'IncomingCallListener');
       }
-    } catch (_) {}
+    } catch (e) {
+      _logger('⚠️ [LISTENER] Failed to fetch caller info: $e', name: 'IncomingCallListener');
+    }
 
     if (!mounted) return;
 
@@ -158,23 +168,29 @@ class _IncomingCallDialog extends StatelessWidget {
                   label: 'Accept',
                   color: Colors.green,
                   onTap: () {
+                    _logger('📱 [DIALOG] Call accepted | callId=${call.callId}', name: 'IncomingCallListener');
                     Navigator.of(context).pop();
                     onDismiss();
                     // Accept the call in the Bloc
                     context.read<CallBloc>().add(AcceptCallEvent(call));
                     // Navigate to the active call page
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => BlocProvider.value(
-                          value: context.read<CallBloc>(),
-                          child: _ActiveCallWrapper(
-                            call: call,
-                            callerName: callerName,
-                            callerPhoto: callerPhoto,
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (context.mounted) {
+                        Navigator.of(context, rootNavigator: false).push(
+                          MaterialPageRoute(
+                            fullscreenDialog: true,
+                            builder: (_) => BlocProvider.value(
+                              value: context.read<CallBloc>(),
+                              child: _ActiveCallWrapper(
+                                call: call,
+                                callerName: callerName,
+                                callerPhoto: callerPhoto,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
+                        );
+                      }
+                    });
                   },
                 ),
               ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:developer' as developer;
 
 import '../../bloc/call_bloc.dart';
 import '../../bloc/call_event.dart';
@@ -9,6 +10,8 @@ import '../../bloc/call_state.dart';
 import '../../models/call_model.dart';
 import '../widgets/call_control_button.dart';
 import '../widgets/call_timer.dart';
+
+final _logger = developer.log;
 
 class OutgoingCallPage extends StatefulWidget {
   final String callId;
@@ -48,10 +51,43 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
     super.dispose();
   }
 
-  void _bindStreams(CallActive state) {
-    _localRenderer.srcObject = state.localStream;
-    if (state.remoteStream != null) {
-      _remoteRenderer.srcObject = state.remoteStream;
+  void _bindStreams(CallState state) {
+    _logger(
+      '📺 [UI] Binding streams | state=${state.runtimeType}',
+      name: 'OutgoingCallPage.Streams',
+    );
+
+    // Bind local stream from any state that has it
+    if (state is CallOutgoing && state.localStream != null) {
+      _logger(
+        '📺 [UI] Binding local stream (CallOutgoing) | videoTracks=${state.localStream?.getVideoTracks().length}',
+        name: 'OutgoingCallPage.Streams',
+      );
+      _localRenderer.srcObject = state.localStream;
+    } else if (state is CallConnecting && state.localStream != null) {
+      _logger(
+        '📺 [UI] Binding local stream (CallConnecting) | videoTracks=${state.localStream?.getVideoTracks().length}',
+        name: 'OutgoingCallPage.Streams',
+      );
+      _localRenderer.srcObject = state.localStream;
+    } else if (state is CallActive) {
+      _logger(
+        '📺 [UI] Binding streams (CallActive) | local videoTracks=${state.localStream.getVideoTracks().length} | remote videoTracks=${state.remoteStream?.getVideoTracks().length}',
+        name: 'OutgoingCallPage.Streams',
+      );
+      _localRenderer.srcObject = state.localStream;
+      if (state.remoteStream != null) {
+        _logger(
+          '📺 [UI] Remote stream available - binding to remote renderer',
+          name: 'OutgoingCallPage.Streams',
+        );
+        _remoteRenderer.srcObject = state.remoteStream;
+      } else {
+        _logger(
+          '📺 [UI] No remote stream yet - waiting',
+          name: 'OutgoingCallPage.Streams',
+        );
+      }
     }
   }
 
@@ -59,7 +95,12 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
   Widget build(BuildContext context) {
     return BlocConsumer<CallBloc, CallState>(
       listener: (context, state) {
-        if (state is CallActive) _bindStreams(state);
+        // Bind streams for any state with media
+        if (state is CallOutgoing ||
+            state is CallConnecting ||
+            state is CallActive) {
+          _bindStreams(state);
+        }
 
         if (state is CallEnded || state is CallFailed) {
           final reason = state is CallEnded
@@ -71,26 +112,44 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
       builder: (context, state) {
         final isVideo = widget.callType == CallType.video;
         final isActive = state is CallActive;
+        final hasLocalStream =
+            state is CallOutgoing ||
+            state is CallConnecting ||
+            state is CallActive;
+        final remoteStream = isActive ? (state).remoteStream : null;
 
         return Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
             fit: StackFit.expand,
             children: [
-              // ── Remote video / avatar background ──
-              if (isActive && isVideo)
-                RTCVideoView(
-                  _remoteRenderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                )
+              // ── VIDEO CALL: Show local camera or remote video ──
+              if (isVideo)
+                if (isActive && remoteStream != null)
+                  RTCVideoView(
+                    _remoteRenderer,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
+                else if (hasLocalStream)
+                  RTCVideoView(
+                    _localRenderer,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    mirror: true,
+                  )
+                else
+                  _AvatarBackground(
+                    name: widget.remoteName,
+                    photoUrl: widget.remotePhoto,
+                  )
+              // ── AUDIO CALL: Show avatar background ──
               else
                 _AvatarBackground(
                   name: widget.remoteName,
                   photoUrl: widget.remotePhoto,
                 ),
 
-              // ── Local PiP (video only) ──
-              if (isVideo && isActive)
+              // ── Local PiP (video only, when active and receiving remote) ──
+              if (isVideo && isActive && remoteStream != null)
                 Positioned(
                   top: 60,
                   right: 16,
@@ -121,7 +180,7 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
                       ),
                       const SizedBox(height: 8),
                       if (state is CallActive)
-                        CallTimer(elapsed: state.elapsed)
+                        CallTimer(elapsed: (state).elapsed)
                       else if (state is CallReconnecting)
                         const Text(
                           'Reconnecting…',
@@ -169,7 +228,11 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(messages[reason] ?? 'Call ended')));
-    if (context.canPop()) context.pop();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 }
 
