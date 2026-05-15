@@ -18,6 +18,7 @@ class WebRtcService {
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
+  bool _isVideo = false;
 
   // Callbacks wired up by CallBloc
   void Function(RTCIceCandidate)? onIceCandidate;
@@ -32,6 +33,7 @@ class WebRtcService {
   // ── Init ─────────────────────────────────────────────────────────────────
 
   Future<void> initialize({required bool isVideo}) async {
+    _isVideo = isVideo;
     _logger(
       '🎬 [WebRTC] Initializing peer connection | isVideo=$isVideo | platform=${kIsWeb ? "WEB" : "MOBILE"}',
     );
@@ -152,8 +154,14 @@ class WebRtcService {
   // ── Offer / Answer ────────────────────────────────────────────────────────
 
   Future<RTCSessionDescription> createOffer() async {
-    _logger('📋 [WebRTC] Creating offer with offerToReceiveAudio=1');
-    final offer = await _pc!.createOffer({'offerToReceiveAudio': 1});
+    final constraints = {'offerToReceiveAudio': 1};
+    if (_isVideo) {
+      constraints['offerToReceiveVideo'] = 1;
+    }
+    _logger(
+      '📋 [WebRTC] Creating offer with constraints=$constraints',
+    );
+    final offer = await _pc!.createOffer(constraints);
     _logger(
       '✅ [WebRTC] Offer created | type=${offer.type} | sdp_length=${offer.sdp?.length}',
     );
