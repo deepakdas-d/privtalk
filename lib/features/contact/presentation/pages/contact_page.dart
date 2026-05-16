@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:privtalk/features/contact/presentation/pages/widgets/contacts_view.dart';
 import '../../../../core/services/permission_service.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../bloc/users_bloc.dart';
 import '../../bloc/users_event.dart';
 import '../../repository/users_repository.dart';
@@ -23,9 +24,13 @@ class _ContactsPageState extends State<ContactsPage> {
   }
 
   Future<void> _handlePermissions() async {
-    if (await PermissionService.hasCameraAndMicPermission()) return;
+    if (await PermissionService.hasCorePermissions()) {
+      await NotificationService.requestPermission();
+      return;
+    }
 
-    final granted = await PermissionService.requestCameraAndMic();
+    final granted = await PermissionService.requestCorePermissions();
+    await NotificationService.requestPermission();
     if (granted) return;
 
     if (!mounted) return;

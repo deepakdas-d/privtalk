@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../../core/services/fcm_sender_service.dart';
 import '../../../core/services/permission_service.dart';
 import '../models/call_model.dart';
 import '../repository/call_repository.dart';
@@ -33,6 +34,10 @@ class CallBloc extends Bloc<CallEvent, CallState> {
   // Whether we are the caller or receiver
   bool _isCaller = false;
 
+  // Cached receiver info for sending FCM notifications (e.g. missed call)
+  String? _receiverFcmToken;
+  String? _callerName;
+
   // The confirmed Firestore callId — null until Firestore doc is created
   String? _currentCallId;
 
@@ -40,7 +45,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
   // ICE CANDIDATE BUFFER — holds candidates that fire BEFORE _currentCallId
   // is assigned. Flushed immediately once _currentCallId is confirmed.
   // This is the fix for the race condition where web ICE candidates fire
-  // during/after createOffer but BEFORE the Firestore doc returns its ID.
+  // during/after createOffer but BEFORE the Firestore doc returns its ID. 
   // ─────────────────────────────────────────────────────────────────────────
   final List<RTCIceCandidate> _pendingCallerCandidates = [];
   bool _callIdConfirmed = false;
@@ -116,7 +121,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
           '📞 [CALLER] Requesting camera & mic permissions',
           name: 'CallBloc.StartCall',
         );
-        final hasPermissions = await PermissionService.requestCameraAndMic();
+        final hasPermissions = await PermissionService.requestCorePermissions();
         if (!hasPermissions) {
           log('❌ [CALLER] Permission denied', name: 'CallBloc.StartCall');
           emit(CallFailed('Camera or microphone permission denied'));
@@ -173,6 +178,14 @@ class CallBloc extends Bloc<CallEvent, CallState> {
       log(
         '📞 [CALLER] ✅ ICE buffer flushed | callId=$_currentCallId',
         name: 'CallBloc.IceBuffer',
+      );
+      // ──────────────────────────────────────────────────────────────────
+
+      // ── Send FCM push to wake up receiver's device ─────────────────
+      await _sendCallFcm(
+        receiverId: event.receiverId,
+        callerId: event.callerId,
+        callId: _currentCallId!,
       );
       // ──────────────────────────────────────────────────────────────────
 
@@ -304,7 +317,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
           '📱 [RECEIVER] Requesting camera & mic permissions',
           name: 'CallBloc.AcceptCall',
         );
-        final hasPermissions = await PermissionService.requestCameraAndMic();
+        final hasPermissions = await PermissionService.requestCorePermissions();
         if (!hasPermissions) {
           log('❌ [RECEIVER] Permission denied', name: 'CallBloc.AcceptCall');
           emit(CallFailed('Camera or microphone permission denied'));
@@ -681,6 +694,21 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     Emitter<CallState> emit,
   ) async {
     await _repository.markMissed(event.callId);
+
+    // Notify the receiver about the missed call
+    if (_receiverFcmToken != null && _callerName != null) {
+      try {
+        await FcmSenderService.sendMissedCall(
+          receiverFcmToken: _receiverFcmToken!,
+          callerName: _callerName!,
+          callId: event.callId,
+        );
+        log('📞 [CALLER] Missed call FCM sent', name: 'CallBloc.Timeout');
+      } catch (e) {
+        log('⚠️ [CALLER] Failed to send missed call FCM: $e', name: 'CallBloc.Timeout');
+      }
+    }
+
     emit(CallEnded('missed'));
     await _cleanup();
   }
@@ -878,6 +906,63 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     return CallType.audio;
   }
 
+  // ── FCM helper ─────────────────────────────────────────────────────────
+
+  /// Fetches the receiver's FCM token and caller's display name,
+  /// then sends an incoming-call push notification via FCM HTTP v1.
+  Future<void> _sendCallFcm({
+    required String receiverId,
+    required String callerId,
+    required String callId,
+  }) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+
+      // Fetch receiver's FCM token and caller's name in parallel
+      final results = await Future.wait([
+        firestore.collection('users').doc(receiverId).get(),
+        firestore.collection('users').doc(callerId).get(),
+      ]);
+
+      final receiverDoc = results[0];
+      final callerDoc = results[1];
+
+      final receiverToken = receiverDoc.data()?['fcmToken'] as String?;
+      final callerName = callerDoc.data()?['name'] as String? ?? 'Unknown';
+
+      // Cache for later use (e.g. missed call notification)
+      _receiverFcmToken = receiverToken;
+      _callerName = callerName;
+
+      if (receiverToken == null || receiverToken.isEmpty) {
+        log(
+          '⚠️ [CALLER] Receiver has no FCM token — push skipped',
+          name: 'CallBloc.FCM',
+        );
+        return;
+      }
+
+      await FcmSenderService.sendIncomingCall(
+        receiverFcmToken: receiverToken,
+        callId: callId,
+        callerName: callerName,
+        callerId: callerId,
+      );
+
+      log(
+        '📞 [CALLER] ✅ FCM incoming-call push sent | receiver=$receiverId | callerName=$callerName',
+        name: 'CallBloc.FCM',
+      );
+    } catch (e) {
+      // Non-fatal: the Firestore listener is the primary mechanism,
+      // FCM is for waking up backgrounded/killed apps.
+      log(
+        '⚠️ [CALLER] Failed to send FCM push (non-fatal): $e',
+        name: 'CallBloc.FCM',
+      );
+    }
+  }
+
   Future<void> _cleanup() async {
     log(
       '🧹 [CLEANUP] Cancelling timers and subscriptions | callId=$_currentCallId | buffered=${_pendingCallerCandidates.length}',
@@ -890,6 +975,8 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     _processedCandidateIds.clear();
     _pendingCallerCandidates.clear();
     _callIdConfirmed = false;
+    _receiverFcmToken = null;
+    _callerName = null;
     await _webrtc.dispose();
     _currentCallId = null;
     log('🧹 [CLEANUP] Done', name: 'CallBloc.Cleanup');
