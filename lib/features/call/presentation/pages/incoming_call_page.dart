@@ -28,10 +28,11 @@ class IncomingCallPage extends StatelessWidget {
         // Navigate to the outgoing page which handles both roles.
         if (state is CallConnecting) {
           context.pushReplacement(
-            '/active-call',
+            '/outgoing-call',
             extra: {
-              'callId': call.callId,
               'remoteUid': call.callerId,
+              'remoteName': callerName,
+              'remotePhoto': callerPhoto,
               'callType': call.type,
             },
           );

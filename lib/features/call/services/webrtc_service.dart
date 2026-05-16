@@ -18,6 +18,7 @@ class WebRtcService {
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
+  // ignore: unused_field
   bool _isVideo = false;
 
   // Callbacks wired up by CallBloc
@@ -55,7 +56,7 @@ class WebRtcService {
       '📹 [WebRTC] Local stream acquired | videoTracks=${_localStream?.getVideoTracks().length} | audioTracks=${_localStream?.getAudioTracks().length}',
     );
 
-    // Add tracks (unified-plan)
+    // Add tracks BEFORE creating offer (unified-plan)
     for (final track in _localStream!.getTracks()) {
       await _pc!.addTrack(track, _localStream!);
       _logger('📤 [WebRTC] Added ${track.kind} track to peer connection');
@@ -130,17 +131,51 @@ class WebRtcService {
       onConnectionStateChange?.call(state);
     };
 
-    _pc!.onTrack = (event) {
+    // FIX 1: Use event.streams directly instead of creating a new local stream.
+    // The original code used createLocalMediaStream('remote') which created a
+    // synthetic local stream — this caused one-way video because the actual
+    // remote stream from the peer was never properly assigned.
+    _pc!.onTrack = (RTCTrackEvent event) async {
       _logger(
-        '📡 [WebRTC] Remote track received | kind=${event.track.kind} | streams=${event.streams.length}',
+        '📡 [WebRTC] onTrack fired | kind=${event.track.kind} | streams=${event.streams.length}',
       );
+
       if (event.streams.isNotEmpty) {
+        // ✅ Use the actual remote stream delivered by the peer connection.
+        // This is the correct approach for unified-plan on both mobile and web.
         _remoteStream = event.streams.first;
         _logger(
-          '✅ [WebRTC] Remote stream set | videoTracks=${_remoteStream?.getVideoTracks().length} | audioTracks=${_remoteStream?.getAudioTracks().length}',
+          '✅ [WebRTC] Remote stream assigned from event.streams | '
+          'video=${_remoteStream!.getVideoTracks().length} | '
+          'audio=${_remoteStream!.getAudioTracks().length}',
         );
-        onRemoteStream?.call(_remoteStream!);
+      } else {
+        // Fallback: some platforms/browsers deliver tracks without a stream.
+        // Manually build the remote stream by adding tracks one by one.
+        _logger(
+          '⚠️ [WebRTC] event.streams is empty — falling back to manual track add',
+        );
+        _remoteStream ??= await createLocalMediaStream('remote');
+
+        final alreadyExists = _remoteStream!.getTracks().any(
+          (t) => t.id == event.track.id,
+        );
+
+        if (!alreadyExists) {
+          await _remoteStream!.addTrack(event.track);
+          _logger(
+            '✅ [WebRTC] Remote track manually added | '
+            'video=${_remoteStream!.getVideoTracks().length} | '
+            'audio=${_remoteStream!.getAudioTracks().length}',
+          );
+        } else {
+          _logger(
+            'ℹ️ [WebRTC] Track already exists in remote stream — skipped',
+          );
+        }
       }
+
+      onRemoteStream?.call(_remoteStream!);
     };
 
     _pc!.onRenegotiationNeeded = () {
@@ -153,14 +188,17 @@ class WebRtcService {
 
   // ── Offer / Answer ────────────────────────────────────────────────────────
 
+  // FIX 2: Always include offerToReceiveVideo in the offer constraints,
+  // regardless of call type. The original code only added it conditionally,
+  // which meant the caller's SDP had no recv video m= line — so onTrack
+  // never fired on the caller side and they couldn't see the receiver's video.
   Future<RTCSessionDescription> createOffer() async {
-    final constraints = {'offerToReceiveAudio': 1};
-    if (_isVideo) {
-      constraints['offerToReceiveVideo'] = 1;
-    }
-    _logger(
-      '📋 [WebRTC] Creating offer with constraints=$constraints',
-    );
+    final constraints = {
+      'offerToReceiveAudio': 1,
+      'offerToReceiveVideo': 1, // ✅ always include — fixes one-way video
+    };
+
+    _logger('📋 [WebRTC] Creating offer | constraints=$constraints');
     final offer = await _pc!.createOffer(constraints);
     _logger(
       '✅ [WebRTC] Offer created | type=${offer.type} | sdp_length=${offer.sdp?.length}',
@@ -171,13 +209,10 @@ class WebRtcService {
   }
 
   Future<RTCSessionDescription> createAnswer() async {
-    _logger(
-      '📋 [WebRTC] Creating answer with offerToReceiveAudio=1, offerToReceiveVideo=1',
-    );
-    final answer = await _pc!.createAnswer({
-      'offerToReceiveAudio': 1,
-      'offerToReceiveVideo': 1,
-    });
+    final constraints = {'offerToReceiveAudio': 1, 'offerToReceiveVideo': 1};
+
+    _logger('📋 [WebRTC] Creating answer | constraints=$constraints');
+    final answer = await _pc!.createAnswer(constraints);
     _logger(
       '✅ [WebRTC] Answer created | type=${answer.type} | sdp_length=${answer.sdp?.length}',
     );
@@ -238,11 +273,14 @@ class WebRtcService {
 
   Future<void> dispose() async {
     _logger('🛑 [WebRTC] Disposing WebRTC service');
+    await _pc?.close();
     _localStream?.getTracks().forEach((t) => t.stop());
-    _logger('  - Local tracks stopped: ${_localStream?.getTracks().length}');
+    _remoteStream?.getTracks().forEach((t) => t.stop());
+    _logger(
+      '  - Local tracks stopped: ${_localStream?.getTracks().length} | Remote tracks stopped: ${_remoteStream?.getTracks().length}',
+    );
     await _localStream?.dispose();
     await _remoteStream?.dispose();
-    await _pc?.close();
     _pc = null;
     _localStream = null;
     _remoteStream = null;

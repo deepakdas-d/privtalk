@@ -36,6 +36,7 @@ class OutgoingCallPage extends StatefulWidget {
 class _OutgoingCallPageState extends State<OutgoingCallPage> {
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  bool _renderersReady = false;
 
   @override
   void initState() {
@@ -47,6 +48,13 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
   Future<void> _initRenderers() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
+    if (mounted) {
+      setState(() => _renderersReady = true);
+      // Rebind streams after renderers are ready
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _bindStreams(context.read<CallBloc>().state);
+      });
+    }
   }
 
   @override
@@ -58,6 +66,7 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
 
   // FIX 2: wrap srcObject assignments in setState so Flutter rebuilds
   void _bindStreams(CallState state) {
+    if (!_renderersReady) return;
     _logger(
       '📺 [UI] Binding streams | state=${state.runtimeType}',
       name: 'OutgoingCallPage.Streams',
@@ -109,7 +118,7 @@ class _OutgoingCallPageState extends State<OutgoingCallPage> {
         final isVideo = widget.callType == CallType.video;
         final isActive = state is CallActive;
         // FIX 3: explicit cast — (state).remoteStream does not exist on CallState
-        final remoteStream = isActive ? (state).remoteStream : null;
+        final remoteStream = state is CallActive ? state.remoteStream : null;
         final hasLocalStream =
             state is CallOutgoing ||
             state is CallConnecting ||

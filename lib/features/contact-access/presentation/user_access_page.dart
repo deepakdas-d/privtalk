@@ -11,7 +11,6 @@ import 'package:privtalk/features/call/bloc/call_bloc.dart';
 import 'package:privtalk/features/call/bloc/call_event.dart';
 import 'package:privtalk/features/call/bloc/call_state.dart';
 import 'package:privtalk/features/call/models/call_model.dart';
-import 'package:privtalk/features/call/repository/call_repository.dart';
 
 class UserAccessPage extends StatelessWidget {
   final String uid;
@@ -20,17 +19,16 @@ class UserAccessPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) => UserAccessBloc(
-            repository: UserAccessRepository(
-              firestore: FirebaseFirestore.instance,
-            ),
-          )..add(LoadUserEvent(uid)),
+    // Only provide UserAccessBloc here.
+    // CallBloc is already provided by the ShellRoute in router.dart —
+    // creating a duplicate was causing bugs 1 & 3 (separate instance meant
+    // OutgoingCallPage read from an empty/uninitialised CallBloc).
+    return BlocProvider(
+      create: (_) => UserAccessBloc(
+        repository: UserAccessRepository(
+          firestore: FirebaseFirestore.instance,
         ),
-        BlocProvider(create: (_) => CallBloc(repository: CallRepository())),
-      ],
+      )..add(LoadUserEvent(uid)),
       child: _UserAccessView(uid: uid),
     );
   }

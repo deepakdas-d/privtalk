@@ -327,6 +327,14 @@ class CallBloc extends Bloc<CallEvent, CallState> {
       );
       _listenToRemoteCandidates(event.call.callId, isCaller: false);
 
+      // Also watch the call document so the receiver detects when the
+      // caller hangs up (status → ended) or the call is otherwise terminated.
+      log(
+        '📱 [RECEIVER] Starting call document watcher',
+        name: 'CallBloc.AcceptCall',
+      );
+      _listenToCallDocument(event.call.callId);
+
       log(
         '📱 [RECEIVER] Setting remote description (offer from caller) | sdp_len=${event.call.offer?['sdp'].toString().length}',
         name: 'CallBloc.AcceptCall',
@@ -390,8 +398,9 @@ class CallBloc extends Bloc<CallEvent, CallState> {
         '❌ [END CALL] No callId available — bloc may have already cleaned up',
         name: 'CallBloc.EndCall',
       );
-      emit(CallEnded('hungUp'));
       await _cleanup();
+
+      emit(CallEnded('hungUp'));
       return;
     }
     try {
@@ -587,12 +596,16 @@ class CallBloc extends Bloc<CallEvent, CallState> {
           await _repository.markConnected(_currentCallId!);
         }
         _startDurationTimer(emit);
+        final remoteStream = _webrtc.remoteStream;
         emit(
           CallActive(
             callId: _currentCallId ?? '',
             callType: _callTypeFromState(),
             localStream: _webrtc.localStream!,
-            remoteStream: _webrtc.remoteStream,
+            remoteStream: remoteStream,
+            micEnabled: true,
+            cameraEnabled: true,
+            elapsed: _elapsed,
           ),
         );
         log('$role ✅ State -> CallActive', name: 'CallBloc.Connection');
@@ -679,27 +692,36 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     Emitter<CallState> emit,
   ) {
     final role = _isCaller ? '📞 [CALLER]' : '📱 [RECEIVER]';
+
     log(
-      '$role 📡 ========== REMOTE STREAM RECEIVED ==========',
-      name: 'CallBloc.RemoteStream',
-    );
-    log(
-      '$role Remote stream tracks: video=${event.stream.getVideoTracks().length}, audio=${event.stream.getAudioTracks().length}',
+      '$role 📡 Remote stream received | '
+      'video=${event.stream.getVideoTracks().length} | '
+      'audio=${event.stream.getAudioTracks().length}',
       name: 'CallBloc.RemoteStream',
     );
 
     final currentState = state;
+
     if (currentState is CallActive) {
-      log(
-        '$role Updating CallActive state with remote stream',
-        name: 'CallBloc.RemoteStream',
+      emit(currentState.copyWith(remoteStream: event.stream));
+
+      return;
+    }
+
+    if (currentState is CallConnecting) {
+      emit(
+        CallActive(
+          callId: currentState.callId,
+          callType: currentState.callType,
+          localStream: currentState.localStream!,
+          remoteStream: event.stream,
+          micEnabled: true,
+          cameraEnabled: true,
+          elapsed: _elapsed,
+        ),
       );
-      emit((currentState).copyWith(remoteStream: event.stream));
-    } else if (currentState is CallConnecting) {
-      log(
-        '$role Remote stream arrived during CallConnecting — will be applied on transition to CallActive',
-        name: 'CallBloc.RemoteStream',
-      );
+
+      return;
     }
   }
 
@@ -724,25 +746,32 @@ class CallBloc extends Bloc<CallEvent, CallState> {
       '📡 Remote side ended the call | reason=${event.reason}',
       name: 'CallBloc.Remote',
     );
-    emit(CallEnded(event.reason));
+
+    if (state is CallEnded) return;
+
     await _cleanup();
+
+    emit(CallEnded(event.reason));
   }
 
   // ── Firestore listeners ────────────────────────────────────────────────
 
   void _listenToCallDocument(String callId) {
+    final role = _isCaller ? '📞 [CALLER]' : '📱 [RECEIVER]';
     log(
-      '📡 [CALLER] Subscribing to call document | callId=$callId',
+      '$role Subscribing to call document | callId=$callId',
       name: 'CallBloc.Firestore',
     );
     _callWatcher?.cancel();
     _callWatcher = _repository.watchCall(callId).listen((snap) {
-      if (!snap.exists || isClosed) return;
+      if (!snap.exists || isClosed || _currentCallId == null) {
+        return;
+      }
       final data = snap.data() as Map<String, dynamic>;
       final status = CallStatusX.fromString(data['status'] as String? ?? '');
 
       log(
-        '📡 [CALLER] Call document update | status=$status | callId=$callId',
+        '$role Call document update | status=$status | callId=$callId',
         name: 'CallBloc.Firestore',
       );
 
@@ -751,7 +780,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
           final answer = data['answer'] as Map<String, dynamic>?;
           if (answer != null && _isCaller) {
             log(
-              '📡 [CALLER] ✅ Answer received from receiver',
+              '$role ✅ Answer received from receiver',
               name: 'CallBloc.Firestore',
             );
             add(RemoteAnswerReceivedEvent(answer));
@@ -759,14 +788,14 @@ class CallBloc extends Bloc<CallEvent, CallState> {
 
         case CallStatus.declined:
           log(
-            '📡 [CALLER] ❌ Call declined by receiver',
+            '$role ❌ Call declined by remote',
             name: 'CallBloc.Firestore',
           );
           if (!isClosed) add(CallRemotelyDeclinedEvent());
 
         case CallStatus.ended:
           log(
-            '📡 [CALLER] Call ended by remote | reason=${data['endReason']}',
+            '$role Call ended by remote | reason=${data['endReason']}',
             name: 'CallBloc.Firestore',
           );
           if (!isClosed && state is! CallEnded) {
@@ -861,8 +890,8 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     _processedCandidateIds.clear();
     _pendingCallerCandidates.clear();
     _callIdConfirmed = false;
-    _currentCallId = null;
     await _webrtc.dispose();
+    _currentCallId = null;
     log('🧹 [CLEANUP] Done', name: 'CallBloc.Cleanup');
   }
 
