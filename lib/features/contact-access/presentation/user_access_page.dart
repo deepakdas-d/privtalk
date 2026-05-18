@@ -11,6 +11,12 @@ import 'package:privtalk/features/call/bloc/call_bloc.dart';
 import 'package:privtalk/features/call/bloc/call_event.dart';
 import 'package:privtalk/features/call/bloc/call_state.dart';
 import 'package:privtalk/features/call/models/call_model.dart';
+import 'package:privtalk/app/app_theme.dart';
+import '../../chat/services/room_service.dart';
+import '../../chat/services/message_service.dart';
+import '../../chat/models/message_model.dart';
+import '../../chat/presentation/widgets/message_bubble.dart';
+import '../../chat/presentation/widgets/message_input.dart';
 
 class UserAccessPage extends StatelessWidget {
   final String uid;
@@ -20,9 +26,7 @@ class UserAccessPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Only provide UserAccessBloc here.
-    // CallBloc is already provided by the ShellRoute in router.dart —
-    // creating a duplicate was causing bugs 1 & 3 (separate instance meant
-    // OutgoingCallPage read from an empty/uninitialised CallBloc).
+    // CallBloc is already provided by the ShellRoute in router.dart
     return BlocProvider(
       create: (_) => UserAccessBloc(
         repository: UserAccessRepository(
@@ -34,12 +38,51 @@ class UserAccessPage extends StatelessWidget {
   }
 }
 
-class _UserAccessView extends StatelessWidget {
+class _UserAccessView extends StatefulWidget {
   final String uid;
 
   const _UserAccessView({required this.uid});
 
+  @override
+  State<_UserAccessView> createState() => _UserAccessViewState();
+}
+
+class _UserAccessViewState extends State<_UserAccessView> {
+  final RoomService _roomService = RoomService();
+  final MessageService _messageService = MessageService();
+
+  String? _roomId;
+  bool _isLoadingRoom = true;
+
   String get _currentUid => FirebaseAuth.instance.currentUser!.uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeRoom();
+  }
+
+  Future<void> _initializeRoom() async {
+    try {
+      debugPrint('DEBUG UI: _initializeRoom started for currentUid=$_currentUid, remoteUid=${widget.uid}');
+      final roomId = await _roomService.createOrGetRoom(_currentUid, widget.uid);
+      debugPrint('DEBUG UI: _initializeRoom successfully got roomId=$roomId');
+      if (mounted) {
+        setState(() {
+          _roomId = roomId;
+          _isLoadingRoom = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      debugPrint('DEBUG UI: Error initializing room: $e');
+      debugPrint('DEBUG UI: StackTrace: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _isLoadingRoom = false;
+        });
+      }
+    }
+  }
 
   void _startCall(
     BuildContext context,
@@ -49,19 +92,29 @@ class _UserAccessView extends StatelessWidget {
   ) {
     // Trigger the call in the Bloc
     context.read<CallBloc>().add(
-      StartCallEvent(callerId: _currentUid, receiverId: uid, callType: type),
+      StartCallEvent(callerId: _currentUid, receiverId: widget.uid, callType: type),
     );
 
     // Navigate immediately — the page listens to Bloc state for the callId
     context.push(
       '/outgoing-call',
       extra: {
-        'remoteUid': uid,
+        'remoteUid': widget.uid,
         'remoteName': remoteName,
         'remotePhoto': remotePhoto,
         'callType': type,
       },
     );
+  }
+
+  void _sendMessage(String text) {
+    if (_roomId != null) {
+      _messageService.sendMessage(
+        roomId: _roomId!,
+        senderId: _currentUid,
+        text: text,
+      );
+    }
   }
 
   @override
@@ -75,103 +128,131 @@ class _UserAccessView extends StatelessWidget {
           );
         }
       },
-      child: Scaffold(
-        appBar: AppBar(title: const Text('User Profile')),
-        body: BlocBuilder<UserAccessBloc, UserAccessState>(
-          builder: (context, state) {
-            if (state is UserAccessLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+      child: BlocBuilder<UserAccessBloc, UserAccessState>(
+        builder: (context, state) {
+          if (state is UserAccessLoading) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
 
-            if (state is UserAccessError) {
-              return Center(child: Text(state.message));
-            }
+          if (state is UserAccessError) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('Error')),
+              body: Center(child: Text(state.message)),
+            );
+          }
 
-            if (state is UserAccessLoaded) {
-              final user = state.user;
+          if (state is UserAccessLoaded) {
+            final user = state.user;
 
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Avatar
-                      CircleAvatar(
-                        radius: 55,
-                        backgroundColor: Colors.deepPurple,
-                        backgroundImage: user.photoUrl.isNotEmpty
-                            ? NetworkImage(user.photoUrl)
-                            : null,
-                        child: user.photoUrl.isEmpty
-                            ? Text(
-                                user.name.isNotEmpty
-                                    ? user.name[0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(
-                                  fontSize: 40,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : null,
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Text(
+            return Scaffold(
+              appBar: AppBar(
+                titleSpacing: 0,
+                title: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.deepPurple,
+                      backgroundImage: user.photoUrl.isNotEmpty
+                          ? NetworkImage(user.photoUrl)
+                          : null,
+                      child: user.photoUrl.isEmpty
+                          ? Text(
+                              user.name.isNotEmpty
+                                  ? user.name[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
                         user.name,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 18),
                       ),
-
-                      const SizedBox(height: 8),
-                      Text(user.phone),
-                      const SizedBox(height: 40),
-
-                      // Video call button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _startCall(
-                            context,
-                            CallType.video,
-                            user.name,
-                            user.photoUrl,
-                          ),
-                          icon: const Icon(Icons.videocam),
-                          label: const Text('Video Call'),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Audio call button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _startCall(
-                            context,
-                            CallType.audio,
-                            user.name,
-                            user.photoUrl,
-                          ),
-                          icon: const Icon(Icons.call),
-                          label: const Text('Audio Call'),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            }
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.call),
+                    onPressed: () => _startCall(
+                      context,
+                      CallType.audio,
+                      user.name,
+                      user.photoUrl,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.videocam),
+                    onPressed: () => _startCall(
+                      context,
+                      CallType.video,
+                      user.name,
+                      user.photoUrl,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              body: Column(
+                children: [
+                  Expanded(
+                    child: _isLoadingRoom
+                        ? const Center(child: CircularProgressIndicator())
+                        : _roomId == null
+                            ? const Center(child: Text('Failed to load chat room'))
+                            : StreamBuilder<List<MessageModel>>(
+                                stream: _messageService.getMessagesStream(_roomId!),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return const Center(child: CircularProgressIndicator());
+                                  }
 
-            return const SizedBox();
-          },
-        ),
+                                  if (snapshot.hasError) {
+                                    return Center(child: Text('Error: ${snapshot.error}'));
+                                  }
+
+                                  final messages = snapshot.data ?? [];
+
+                                  if (messages.isEmpty) {
+                                    return const Center(
+                                      child: Text(
+                                        'No messages yet. Say hi!',
+                                        style: TextStyle(color: AppTheme.textSecondary),
+                                      ),
+                                    );
+                                  }
+
+                                  return ListView.builder(
+                                    reverse: true, // Show newest at the bottom
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    itemCount: messages.length,
+                                    itemBuilder: (context, index) {
+                                      final message = messages[index];
+                                      final isMe = message.senderId == _currentUid;
+                                      return MessageBubble(message: message, isMe: isMe);
+                                    },
+                                  );
+                                },
+                              ),
+                  ),
+                  MessageInput(
+                    onSend: _sendMessage,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return const Scaffold(body: SizedBox());
+        },
       ),
     );
   }
