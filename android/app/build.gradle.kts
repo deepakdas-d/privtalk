@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.privtalk"
+    namespace = "com.privtalk.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.privtalk"
+        applicationId = "com.privtalk.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

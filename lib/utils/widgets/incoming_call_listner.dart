@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:developer' as developer;
 import 'package:privtalk/features/call/presentation/pages/outgoing_call_page.dart';
 
+import '../../core/services/local_notification_service.dart';
 import '../../features/call/bloc/call_bloc.dart';
 import '../../features/call/bloc/call_event.dart';
 import '../../features/call/models/call_model.dart';
@@ -38,14 +39,20 @@ class _IncomingCallListenerState extends State<IncomingCallListener> {
       stream: _repo.watchIncomingCalls(_currentUid),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
-          _logger('📱 [LISTENER] Checking for incoming calls | docs=${snapshot.data!.docs.length}', name: 'IncomingCallListener');
+          _logger(
+            '📱 [LISTENER] Checking for incoming calls | docs=${snapshot.data!.docs.length}',
+            name: 'IncomingCallListener',
+          );
           for (final doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
             final callId = data['callId'] as String? ?? doc.id;
 
             if (!_shownCallIds.contains(callId)) {
               _shownCallIds.add(callId);
-              _logger('📱 [LISTENER] New incoming call detected | callId=$callId | from=${data['callerId']}', name: 'IncomingCallListener');
+              _logger(
+                '📱 [LISTENER] New incoming call detected | callId=$callId | from=${data['callerId']}',
+                name: 'IncomingCallListener',
+              );
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _showIncomingCallOverlay(CallModel.fromMap(data));
@@ -59,7 +66,17 @@ class _IncomingCallListenerState extends State<IncomingCallListener> {
   }
 
   Future<void> _showIncomingCallOverlay(CallModel call) async {
-    _logger('📱 [LISTENER] Showing incoming call overlay | callId=${call.callId} | from=${call.callerId} | isVideo=${call.isVideo}', name: 'IncomingCallListener');
+    _logger(
+      '📱 [LISTENER] Showing incoming call overlay | callId=${call.callId} | from=${call.callerId} | isVideo=${call.isVideo}',
+      name: 'IncomingCallListener',
+    );
+
+    if (call.callId == LocalNotificationService.pendingDeclineCallId) {
+      LocalNotificationService.pendingDeclineCallId = null;
+      _shownCallIds.remove(call.callId);
+      context.read<CallBloc>().add(DeclineCallEvent(call.callId));
+      return;
+    }
 
     // Fetch caller info from Firestore users collection
     String callerName = 'Unknown';
@@ -74,13 +91,47 @@ class _IncomingCallListenerState extends State<IncomingCallListener> {
         final data = userDoc.data()!;
         callerName = data['name'] as String? ?? 'Unknown';
         callerPhoto = data['profileImage'] as String? ?? '';
-        _logger('📱 [LISTENER] Caller info fetched | name=$callerName', name: 'IncomingCallListener');
+        _logger(
+          '📱 [LISTENER] Caller info fetched | name=$callerName',
+          name: 'IncomingCallListener',
+        );
       }
     } catch (e) {
-      _logger('⚠️ [LISTENER] Failed to fetch caller info: $e', name: 'IncomingCallListener');
+      _logger(
+        '⚠️ [LISTENER] Failed to fetch caller info: $e',
+        name: 'IncomingCallListener',
+      );
     }
 
     if (!mounted) return;
+
+    if (call.callId == LocalNotificationService.pendingAnswerCallId) {
+      LocalNotificationService.pendingAnswerCallId = null;
+      _logger(
+        '📱 [LISTENER] Auto-accepting from notification tap | callId=${call.callId}',
+        name: 'IncomingCallListener',
+      );
+      _shownCallIds.remove(call.callId);
+      context.read<CallBloc>().add(AcceptCallEvent(call));
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: false).push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => BlocProvider.value(
+              value: context.read<CallBloc>(),
+              child: _ActiveCallWrapper(
+                call: call,
+                callerName: callerName,
+                callerPhoto: callerPhoto,
+              ),
+            ),
+          ),
+        );
+      });
+      return;
+    }
 
     showDialog(
       context: context,
@@ -168,7 +219,10 @@ class _IncomingCallDialog extends StatelessWidget {
                   label: 'Accept',
                   color: Colors.green,
                   onTap: () {
-                    _logger('📱 [DIALOG] Call accepted | callId=${call.callId}', name: 'IncomingCallListener');
+                    _logger(
+                      '📱 [DIALOG] Call accepted | callId=${call.callId}',
+                      name: 'IncomingCallListener',
+                    );
                     Navigator.of(context).pop();
                     onDismiss();
                     // Accept the call in the Bloc

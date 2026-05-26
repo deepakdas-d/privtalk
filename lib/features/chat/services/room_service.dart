@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RoomService {
@@ -11,30 +13,30 @@ class RoomService {
 
   Future<String> createOrGetRoom(String currentUserId, String otherUserId) async {
     try {
-      print('DEBUG: createOrGetRoom called with currentUserId=$currentUserId, otherUserId=$otherUserId');
+      log('DEBUG: createOrGetRoom called with currentUserId=$currentUserId, otherUserId=$otherUserId');
       final roomId = getRoomId(currentUserId, otherUserId);
-      print('DEBUG: Generated roomId=$roomId');
+      log('DEBUG: Generated roomId=$roomId');
       final roomRef = _firestore.collection('rooms').doc(roomId);
 
-      print('DEBUG: Fetching document for roomId=$roomId');
+      log('DEBUG: Fetching document for roomId=$roomId');
       final doc = await roomRef.get();
-      print('DEBUG: Document fetched. exists=${doc.exists}');
+      log('DEBUG: Document fetched. exists=${doc.exists}');
       
       if (!doc.exists) {
-        print('DEBUG: Document does not exist. Creating new room...');
+        log('DEBUG: Document does not exist. Creating new room...');
         await roomRef.set({
           'participants': [currentUserId, otherUserId],
           'createdAt': FieldValue.serverTimestamp(),
           'lastMessage': '',
           'lastMessageAt': FieldValue.serverTimestamp(),
         });
-        print('DEBUG: New room created successfully.');
+        log('DEBUG: New room created successfully.');
       }
 
       return roomId;
     } catch (e, stackTrace) {
-      print('DEBUG: Error in createOrGetRoom: $e');
-      print('DEBUG: StackTrace: $stackTrace');
+      log('DEBUG: Error in createOrGetRoom: $e');
+      log('DEBUG: StackTrace: $stackTrace');
       rethrow;
     }
   }

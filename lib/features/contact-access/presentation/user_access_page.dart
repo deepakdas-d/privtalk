@@ -29,9 +29,7 @@ class UserAccessPage extends StatelessWidget {
     // CallBloc is already provided by the ShellRoute in router.dart
     return BlocProvider(
       create: (_) => UserAccessBloc(
-        repository: UserAccessRepository(
-          firestore: FirebaseFirestore.instance,
-        ),
+        repository: UserAccessRepository(firestore: FirebaseFirestore.instance),
       )..add(LoadUserEvent(uid)),
       child: _UserAccessView(uid: uid),
     );
@@ -64,8 +62,13 @@ class _UserAccessViewState extends State<_UserAccessView> {
 
   Future<void> _initializeRoom() async {
     try {
-      debugPrint('DEBUG UI: _initializeRoom started for currentUid=$_currentUid, remoteUid=${widget.uid}');
-      final roomId = await _roomService.createOrGetRoom(_currentUid, widget.uid);
+      debugPrint(
+        'DEBUG UI: _initializeRoom started for currentUid=$_currentUid, remoteUid=${widget.uid}',
+      );
+      final roomId = await _roomService.createOrGetRoom(
+        _currentUid,
+        widget.uid,
+      );
       debugPrint('DEBUG UI: _initializeRoom successfully got roomId=$roomId');
       if (mounted) {
         setState(() {
@@ -92,7 +95,11 @@ class _UserAccessViewState extends State<_UserAccessView> {
   ) {
     // Trigger the call in the Bloc
     context.read<CallBloc>().add(
-      StartCallEvent(callerId: _currentUid, receiverId: widget.uid, callType: type),
+      StartCallEvent(
+        callerId: _currentUid,
+        receiverId: widget.uid,
+        callType: type,
+      ),
     );
 
     // Navigate immediately — the page listens to Bloc state for the callId
@@ -112,6 +119,7 @@ class _UserAccessViewState extends State<_UserAccessView> {
       _messageService.sendMessage(
         roomId: _roomId!,
         senderId: _currentUid,
+        receiverId: widget.uid,
         text: text,
       );
     }
@@ -207,45 +215,55 @@ class _UserAccessViewState extends State<_UserAccessView> {
                     child: _isLoadingRoom
                         ? const Center(child: CircularProgressIndicator())
                         : _roomId == null
-                            ? const Center(child: Text('Failed to load chat room'))
-                            : StreamBuilder<List<MessageModel>>(
-                                stream: _messageService.getMessagesStream(_roomId!),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState == ConnectionState.waiting) {
-                                    return const Center(child: CircularProgressIndicator());
-                                  }
+                        ? const Center(child: Text('Failed to load chat room'))
+                        : StreamBuilder<List<MessageModel>>(
+                            stream: _messageService.getMessagesStream(_roomId!),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
 
-                                  if (snapshot.hasError) {
-                                    return Center(child: Text('Error: ${snapshot.error}'));
-                                  }
+                              if (snapshot.hasError) {
+                                return Center(
+                                  child: Text('Error: ${snapshot.error}'),
+                                );
+                              }
 
-                                  final messages = snapshot.data ?? [];
+                              final messages = snapshot.data ?? [];
 
-                                  if (messages.isEmpty) {
-                                    return const Center(
-                                      child: Text(
-                                        'No messages yet. Say hi!',
-                                        style: TextStyle(color: AppTheme.textSecondary),
-                                      ),
-                                    );
-                                  }
+                              if (messages.isEmpty) {
+                                return const Center(
+                                  child: Text(
+                                    'No messages yet. Say hi!',
+                                    style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                );
+                              }
 
-                                  return ListView.builder(
-                                    reverse: true, // Show newest at the bottom
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    itemCount: messages.length,
-                                    itemBuilder: (context, index) {
-                                      final message = messages[index];
-                                      final isMe = message.senderId == _currentUid;
-                                      return MessageBubble(message: message, isMe: isMe);
-                                    },
+                              return ListView.builder(
+                                reverse: true, // Show newest at the bottom
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                itemCount: messages.length,
+                                itemBuilder: (context, index) {
+                                  final message = messages[index];
+                                  final isMe = message.senderId == _currentUid;
+                                  return MessageBubble(
+                                    message: message,
+                                    isMe: isMe,
                                   );
                                 },
-                              ),
+                              );
+                            },
+                          ),
                   ),
-                  MessageInput(
-                    onSend: _sendMessage,
-                  ),
+                  MessageInput(onSend: _sendMessage),
                 ],
               ),
             );

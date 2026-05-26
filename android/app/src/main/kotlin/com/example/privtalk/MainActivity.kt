@@ -1,4 +1,4 @@
-package com.example.privtalk
+package com.privtalk.app
 
 import io.flutter.embedding.android.FlutterActivity
 

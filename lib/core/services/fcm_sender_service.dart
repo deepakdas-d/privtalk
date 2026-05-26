@@ -112,17 +112,11 @@ class FcmSenderService {
         '📤 [FCM] Payload: ${json.encode(message)}',
         name: 'FcmSender',
       );
-      developer.log(
-        '📤 [FCM] Endpoint: $_fcmEndpoint',
-        name: 'FcmSender',
-      );
+      developer.log('📤 [FCM] Endpoint: $_fcmEndpoint', name: 'FcmSender');
 
       final accessToken = await _getAccessToken();
 
-      developer.log(
-        '📤 [FCM] Sending POST request...',
-        name: 'FcmSender',
-      );
+      developer.log('📤 [FCM] Sending POST request...', name: 'FcmSender');
 
       final response = await _dio.post(
         _fcmEndpoint,
@@ -186,14 +180,12 @@ class FcmSenderService {
         },
 
         /// Android specific config
-        'android': {'priority': 'high'},
+        'android': {'priority': 'HIGH', 'ttl': '0s'},
 
         /// iOS specific config
         'apns': {
           'payload': {
-            'aps': {
-              'sound': 'custom_ringtone.wav',
-            }
+            'aps': {'sound': 'custom_ringtone.wav'},
           },
           'headers': {'apns-priority': '10', 'apns-push-type': 'voip'},
         },
@@ -249,6 +241,62 @@ class FcmSenderService {
 
     developer.log(
       '📞 [FCM] ✅ sendMissedCall() completed successfully',
+      name: 'FcmSender',
+    );
+  }
+
+  /// Sends a text message notification (heads-up/pop-up).
+  ///
+  /// Similar to WhatsApp/Instagram message notifications.
+  static Future<void> sendTextMessage({
+    required String receiverFcmToken,
+    required String senderName,
+    required String senderId,
+    required String messageText,
+    required String chatId,
+  }) async {
+    developer.log(
+      '💬 [FCM] sendTextMessage() | sender=$senderName | token=${receiverFcmToken.substring(0, 20)}...',
+      name: 'FcmSender',
+    );
+
+    await _sendMessage(
+      message: {
+        'token': receiverFcmToken,
+
+        /// Visible notification
+        'notification': {'title': senderName, 'body': messageText},
+
+        /// Extra app data for navigation/handling
+        'data': {
+          'type': 'text_message',
+          'senderId': senderId,
+          'senderName': senderName,
+          'chatId': chatId,
+        },
+
+        /// Android-specific configuration for heads-up (pop-up) notification
+        'android': {
+          'priority': 'HIGH',
+          'notification': {
+            'channel_id': 'messages_channel', // High importance channel
+            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+            'sound': 'default',
+          },
+        },
+
+        /// iOS specific config
+        'apns': {
+          'payload': {
+            'aps': {'sound': 'default'},
+          },
+          'headers': {'apns-priority': '10'},
+        },
+      },
+    );
+
+    developer.log(
+      '💬 [FCM] ✅ sendTextMessage() completed successfully',
       name: 'FcmSender',
     );
   }

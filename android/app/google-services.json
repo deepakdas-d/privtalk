@@ -41,6 +41,42 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:691445730086:android:9e2fdc73560e53aa3fcfe7",
+        "android_client_info": {
+          "package_name": "com.privtalk.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "691445730086-ecre12v18ohk3bfvg0kbp5hht5815q2h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4pT_pM4QoxJZhcwpaqvqNXyOu8rvAVwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "691445730086-ecre12v18ohk3bfvg0kbp5hht5815q2h.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "691445730086-1lcrfe74qs6npug10aeviv6bgg7as4c7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.privtalk"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

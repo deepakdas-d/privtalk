@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyA4pT_pM4QoxJZhcwpaqvqNXyOu8rvAVwk',
-    appId: '1:691445730086:android:19a7d0289acc91cb3fcfe7',
+    appId: '1:691445730086:android:9e2fdc73560e53aa3fcfe7',
     messagingSenderId: '691445730086',
     projectId: 'privtalk-4f668',
     databaseURL: 'https://privtalk-4f668-default-rtdb.firebaseio.com',

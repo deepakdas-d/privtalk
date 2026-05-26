@@ -33,20 +33,29 @@ class NotificationService {
 
   /// Call once from main.dart after Firebase.initializeApp().
   static Future<void> initialize() async {
-    developer.log('🔔 [FCM] Initializing NotificationService...', name: 'NotificationService');
+    developer.log(
+      '🔔 [FCM] Initializing NotificationService...',
+      name: 'NotificationService',
+    );
     await _saveToken();
     _listenTokenRefresh();
     _listenForeground();
     _listenBackgroundTap();
     _listenKilledStateTap();
-    developer.log('🔔 [FCM] ✅ NotificationService initialized', name: 'NotificationService');
+    developer.log(
+      '🔔 [FCM] ✅ NotificationService initialized',
+      name: 'NotificationService',
+    );
   }
 
   // ─── Permission ────────────────────────────────────────────────────────────
 
   /// Call this after login to ensure Firebase knows about the granted permission
   static Future<void> requestPermission() async {
-    developer.log('🔔 [FCM] Requesting notification permission...', name: 'NotificationService');
+    developer.log(
+      '🔔 [FCM] Requesting notification permission...',
+      name: 'NotificationService',
+    );
     final settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
@@ -64,12 +73,18 @@ class NotificationService {
   static Future<void> _saveToken() async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
-      developer.log('🔔 [FCM] ⚠️ _saveToken skipped — no user logged in', name: 'NotificationService');
+      developer.log(
+        '🔔 [FCM] ⚠️ _saveToken skipped — no user logged in',
+        name: 'NotificationService',
+      );
       return;
     }
     final token = await _fcm.getToken();
     if (token == null) {
-      developer.log('🔔 [FCM] ⚠️ _saveToken skipped — FCM token is null', name: 'NotificationService');
+      developer.log(
+        '🔔 [FCM] ⚠️ _saveToken skipped — FCM token is null',
+        name: 'NotificationService',
+      );
       return;
     }
     developer.log(
@@ -77,7 +92,10 @@ class NotificationService {
       name: 'NotificationService',
     );
     await _firestore.collection('users').doc(uid).update({'fcmToken': token});
-    developer.log('🔔 [FCM] ✅ Token saved to Firestore', name: 'NotificationService');
+    developer.log(
+      '🔔 [FCM] ✅ Token saved to Firestore',
+      name: 'NotificationService',
+    );
   }
 
   static void _listenTokenRefresh() {
@@ -94,7 +112,10 @@ class NotificationService {
 
   /// App is open and in foreground.
   static void _listenForeground() {
-    developer.log('🔔 [FCM] Foreground listener registered', name: 'NotificationService');
+    developer.log(
+      '🔔 [FCM] Foreground listener registered',
+      name: 'NotificationService',
+    );
     FirebaseMessaging.onMessage.listen((message) async {
       final type = message.data['type'];
       developer.log(
@@ -106,11 +127,30 @@ class NotificationService {
         name: 'NotificationService',
       );
       if (type == 'incoming_call') {
-        developer.log('🔔 [FCM-FG] Showing call notification...', name: 'NotificationService');
+        developer.log(
+          '🔔 [FCM-FG] Showing call notification...',
+          name: 'NotificationService',
+        );
         await LocalNotificationService.showCallNotification(message);
-        developer.log('🔔 [FCM-FG] ✅ Call notification shown', name: 'NotificationService');
+        developer.log(
+          '🔔 [FCM-FG] ✅ Call notification shown',
+          name: 'NotificationService',
+        );
+      } else if (type == 'text_message') {
+        developer.log(
+          '🔔 [FCM-FG] Showing text message notification...',
+          name: 'NotificationService',
+        );
+        await LocalNotificationService.showTextMessageNotification(message);
+        developer.log(
+          '🔔 [FCM-FG] ✅ Text message notification shown',
+          name: 'NotificationService',
+        );
       } else {
-        developer.log('🔔 [FCM-FG] Type "$type" — no action', name: 'NotificationService');
+        developer.log(
+          '🔔 [FCM-FG] Type "$type" — no action',
+          name: 'NotificationService',
+        );
       }
     });
   }
@@ -140,7 +180,16 @@ class NotificationService {
       name: 'NotificationService',
     );
     if (type == 'incoming_call' && callId != null) {
-      developer.log('🔔 [FCM-TAP] Deferring to IncomingCallListener', name: 'NotificationService');
+      developer.log(
+        '🔔 [FCM-TAP] Deferring to IncomingCallListener',
+        name: 'NotificationService',
+      );
+    } else if (type == 'text_message') {
+      final chatId = message.data['chatId'];
+      developer.log(
+        '🔔 [FCM-TAP] Text message tapped for chat: ${chatId ?? "unknown"}',
+        name: 'NotificationService',
+      );
     }
   }
 }
